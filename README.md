@@ -4,12 +4,12 @@
 
 ## 版本要求
 
-| 依赖 | 版本                             |
-|------|--------------------------------|
-| PHP | ^7.2 \| ^7.3 \| ^7.4 \| ^8.0                   |
-| Laravel | ^8.0 \| ^9.0 \| ^10.0 \| ^11.0 |
-| Lumen | ^8.0 \| ^9.0 \| ^10.0 \| ^11.0 |
-| Workerman | ^4.0                           |
+| 依赖 | 版本             |
+|------|----------------|
+| PHP | ^8.1           |
+| Laravel | ^10.0 \| ^11.0 |
+| Lumen | ^10.0 \| ^11.0 |
+| Workerman | ^5.0           |
 
 ## 特性
 
@@ -23,7 +23,7 @@
 ## 安装
 
 ```bash
-composer require qiuapeng921/laravel-workerman
+composer require "qiuapeng921/laravel-workerman:2.x-dev"
 ```
 
 ## 配置
