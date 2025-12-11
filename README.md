@@ -1,4 +1,4 @@
-# Workerman Laravel
+# Laravel Workerman
 
 使用 Workerman 加速 Laravel 应用，常驻内存模式提升 5-20 倍性能。
 
@@ -21,7 +21,7 @@
 ## 安装
 
 ```bash
-composer require qiuapeng921/workerman-laravel
+composer require qiuapeng921/laravel-workerman
 ```
 
 ## 配置
@@ -166,7 +166,7 @@ src/
     "repositories": [
         {
             "type": "path",
-            "url": "/path/to/workerman-laravel",
+            "url": "/path/to/laravel-workerman",
             "options": { "symlink": true }
         }
     ],
