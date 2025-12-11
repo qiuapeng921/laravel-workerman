@@ -16,10 +16,10 @@ use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
 final class Bootstrap
 {
     /** @var string 项目根目录 */
-    private string $basePath;
+    private $basePath;
 
     /** @var array<string> 命令行参数 */
-    private array $argv;
+    private $argv;
 
     /** @var string Workerman 版本要求 */
     private const WORKERMAN_MIN_VERSION = '4.0.0';

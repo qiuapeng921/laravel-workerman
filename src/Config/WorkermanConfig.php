@@ -13,37 +13,37 @@ namespace Qiuapeng\LaravelWorkerman\Config;
 final class WorkermanConfig
 {
     /** @var string 服务器监听地址 */
-    private string $host;
+    private $host;
 
     /** @var int 服务器监听端口 */
-    private int $port;
+    private $port;
 
     /** @var int Worker 进程数量 */
-    private int $workerCount;
+    private $workerCount;
 
     /** @var int 单个 Worker 最大请求数 */
-    private int $maxRequests;
+    private $maxRequests;
 
     /** @var bool 是否启用调试模式 */
-    private bool $debug;
+    private $debug;
 
     /** @var string Worker 进程名称 */
-    private string $name;
+    private $name;
 
     /** @var bool 是否启用静态文件服务 */
-    private bool $staticEnable;
+    private $staticEnable;
 
     /** @var string 静态文件目录路径 */
-    private string $staticPath;
+    private $staticPath;
 
     /** @var string 日志文件路径 */
-    private string $logFile;
+    private $logFile;
 
     /** @var string 项目根目录 */
-    private string $basePath;
+    private $basePath;
 
     /** @var string 运行时目录 */
-    private string $runtimeDir;
+    private $runtimeDir;
 
     /**
      * 配置构造函数

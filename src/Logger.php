@@ -12,7 +12,7 @@ namespace Qiuapeng\LaravelWorkerman;
 final class Logger
 {
     /** @var bool 是否开启调试模式 */
-    private static bool $debug = false;
+    private static $debug = false;
 
     /**
      * 设置调试模式

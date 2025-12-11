@@ -240,7 +240,7 @@ $app->withFacades();
         }
     ],
     "require": {
-        "qiuapeng/workerman-laravel": "@dev"
+        "qiuapeng/laravel-workerman": "@dev"
     }
 }
 ```

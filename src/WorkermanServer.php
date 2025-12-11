@@ -20,13 +20,13 @@ use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
 final class WorkermanServer
 {
     /** @var WorkermanConfig 配置对象 */
-    private WorkermanConfig $config;
+    private $config;
 
     /** @var Worker|null Worker 实例 */
-    private ?Worker $worker = null;
+    private $worker = null;
 
     /** @var AppManager|null 应用管理器 (每个 Worker 进程独立，支持 Laravel/Lumen) */
-    private ?AppManager $appManager = null;
+    private $appManager = null;
 
     /**
      * 构造函数
@@ -90,9 +90,15 @@ final class WorkermanServer
      */
     private function registerCallbacks(): void
     {
-        $this->worker->onWorkerStart = fn(Worker $worker) => $this->onWorkerStart($worker);
-        $this->worker->onMessage = fn(TcpConnection $conn, Request $req) => $this->onMessage($conn, $req);
-        $this->worker->onWorkerStop = fn(Worker $worker) => $this->onWorkerStop($worker);
+        $this->worker->onWorkerStart = function (Worker $worker) {
+            $this->onWorkerStart($worker);
+        };
+        $this->worker->onMessage = function (TcpConnection $conn, Request $req) {
+            $this->onMessage($conn, $req);
+        };
+        $this->worker->onWorkerStop = function (Worker $worker) {
+            $this->onWorkerStop($worker);
+        };
     }
 
     /**

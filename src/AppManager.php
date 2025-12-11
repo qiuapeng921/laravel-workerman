@@ -23,22 +23,22 @@ use Qiuapeng\LaravelWorkerman\Adapters\AdapterFactory;
 class AppManager
 {
     /** @var FrameworkAdapter 框架适配器 */
-    private FrameworkAdapter $adapter;
+    private $adapter;
 
     /** @var bool 是否已初始化 */
-    private bool $initialized = false;
+    private $initialized = false;
 
     /** @var int 当前进程已处理的请求数 */
-    private int $requestCount = 0;
+    private $requestCount = 0;
 
     /** @var int 最大请求数 */
-    private int $maxRequests;
+    private $maxRequests;
 
     /** @var float 峰值内存 */
-    private float $peakMemory = 0;
+    private $peakMemory = 0;
 
     /** @var array<string, mixed> 性能统计 */
-    private array $stats = [
+    private $stats = [
         'total_requests' => 0,
         'total_time_ms' => 0,
         'min_time_ms' => PHP_FLOAT_MAX,
@@ -46,13 +46,13 @@ class AppManager
     ];
 
     /** @var string 基础路径 */
-    private string $basePath;
+    private $basePath;
 
     /** @var int 监听端口 */
-    private int $port;
+    private $port;
 
     /** @var bool 是否开启调试模式 */
-    private bool $debug;
+    private $debug;
 
     /**
      * @param string $basePath    Laravel/Lumen 项目根目录
