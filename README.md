@@ -171,7 +171,7 @@ src/
         }
     ],
     "require": {
-        "qiuapeng921/workerman-laravel": "@dev"
+        "qiuapeng/workerman-laravel": "@dev"
     }
 }
 ```

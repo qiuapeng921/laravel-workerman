@@ -1,5 +1,5 @@
 {
-    "name": "qiuapeng921/laravel-workerman",
+    "name": "qiuapeng/laravel-workerman",
     "description": "使用 Workerman 加速 Laravel 应用，常驻内存模式提升 5-20 倍性能",
     "type": "library",
     "license": "MIT",

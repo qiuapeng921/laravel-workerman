@@ -8,7 +8,7 @@ use Throwable;
 use Workerman\Worker;
 use Workerman\Protocols\Http\Request;
 use Workerman\Connection\TcpConnection;
-use Qiuapeng\WorkermanLaravel\Config\WorkermanConfig;
+use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
 
 /**
  * Workerman 服务器管理类

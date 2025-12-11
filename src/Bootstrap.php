@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Qiuapeng\LaravelWorkerman;
 
 use Workerman\Worker;
-use Qiuapeng\WorkermanLaravel\Config\WorkermanConfig;
+use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
 
 /**
  * Workerman 引导类
