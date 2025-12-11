@@ -15,6 +15,7 @@ use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
  *
  * 封装 Worker 的创建、配置和生命周期管理
  * 提供清晰的回调注册和服务器启动接口
+ * 同时支持 Laravel 和 Lumen 框架
  */
 final class WorkermanServer
 {
@@ -24,8 +25,8 @@ final class WorkermanServer
     /** @var Worker|null Worker 实例 */
     private ?Worker $worker = null;
 
-    /** @var LaravelAppManager|null Laravel 应用管理器 (每个 Worker 进程独立) */
-    private ?LaravelAppManager $laravelApp = null;
+    /** @var AppManager|null 应用管理器 (每个 Worker 进程独立，支持 Laravel/Lumen) */
+    private ?AppManager $appManager = null;
 
     /**
      * 构造函数
@@ -97,7 +98,7 @@ final class WorkermanServer
     /**
      * Worker 启动回调
      *
-     * 在每个 Worker 进程启动时调用，负责初始化 Laravel 应用
+     * 在每个 Worker 进程启动时调用，负责初始化应用（支持 Laravel/Lumen）
      *
      * @param Worker $worker Worker 实例
      *
@@ -105,7 +106,7 @@ final class WorkermanServer
      */
     private function onWorkerStart(Worker $worker): void
     {
-        $this->laravelApp = new LaravelAppManager(
+        $this->appManager = new AppManager(
             $this->config->getBasePath(),
             $this->config->getMaxRequests(),
             $this->config->getPort(),
@@ -115,7 +116,7 @@ final class WorkermanServer
         try {
             $startTime = microtime(true);
 
-            $this->laravelApp->initialize();
+            $this->appManager->initialize();
 
             $initTime = round((microtime(true) - $startTime) * 1000, 2);
             $memoryUsed = round(memory_get_usage(true) / 1024 / 1024, 2);
@@ -134,7 +135,7 @@ final class WorkermanServer
     /**
      * HTTP 请求回调
      *
-     * 处理每个 HTTP 请求，优先检查静态文件，否则交由 Laravel 处理
+     * 处理每个 HTTP 请求，优先检查静态文件，否则交由应用处理
      *
      * @param TcpConnection $connection TCP 连接对象
      * @param Request       $request    HTTP 请求对象
@@ -152,8 +153,8 @@ final class WorkermanServer
             }
         }
 
-        // Laravel 处理动态请求
-        $response = $this->laravelApp->handleRequest($request);
+        // 应用处理动态请求 (Laravel/Lumen)
+        $response = $this->appManager->handleRequest($request);
         $connection->send($response);
     }
 
@@ -168,13 +169,13 @@ final class WorkermanServer
      */
     private function onWorkerStop(Worker $worker): void
     {
-        if ($this->laravelApp === null || $this->laravelApp->getRequestCount() === 0) {
+        if ($this->appManager === null || $this->appManager->getRequestCount() === 0) {
             return;
         }
 
-        $stats = $this->laravelApp->getStats();
+        $stats = $this->appManager->getStats();
         $avgTime = $this->calculateAverageTime($stats);
-        $peakMemory = $this->laravelApp->getPeakMemory();
+        $peakMemory = $this->appManager->getPeakMemory();
 
         Logger::info(sprintf(
             'Worker #%d 停止 | 请求数: %d | 平均响应: %.2fms | 峰值内存: %sMB',

@@ -1,14 +1,15 @@
 # Laravel Workerman
 
-使用 Workerman 加速 Laravel 应用，常驻内存模式提升 5-20 倍性能。
+使用 Workerman 加速 Laravel/Lumen 应用，常驻内存模式提升 5-20 倍性能。
 
 ## 版本要求
 
-| 依赖 | 版本                      |
-|------|-------------------------|
-| PHP | ^8.1                    |
-| Laravel | ^10.0 \| ^11.0 \| ^12.0 |
-| Workerman | ^5.0                    |
+| 依赖 | 版本                             |
+|------|--------------------------------|
+| PHP | ^7.2 \| ^7.3 \| ^7.4 \| ^8.0                   |
+| Laravel | ^8.0 \| ^9.0 \| ^10.0 \| ^11.0 |
+| Lumen | ^8.0 \| ^9.0 \| ^10.0 \| ^11.0 |
+| Workerman | ^4.0                           |
 
 ## 特性
 
@@ -17,14 +18,17 @@
 - 📁 **静态文件**: 内置静态文件服务，无需 Nginx
 - 🛠 **易于集成**: 一键安装，开箱即用
 - 📊 **性能统计**: 自动统计请求数、响应时间、内存使用
+- 🔀 **双框架支持**: 同时兼容 Laravel 和 Lumen 框架
 
 ## 安装
 
 ```bash
-composer require qiuapeng921/laravel-workerman:2.x-dev
+composer require qiuapeng921/laravel-workerman
 ```
 
 ## 配置
+
+### Laravel
 
 发布配置文件和启动脚本：
 
@@ -35,6 +39,24 @@ php artisan vendor:publish --tag=workerman
 这将发布：
 - `config/workerman.php` - 配置文件
 - `workerman.php` - 启动脚本
+
+### Lumen
+
+由于 Lumen 不支持 `vendor:publish`，需要手动复制文件：
+
+```bash
+# 复制配置文件
+cp vendor/qiuapeng921/laravel-workerman/config/workerman.php config/workerman.php
+
+# 复制启动脚本
+cp vendor/qiuapeng921/laravel-workerman/workerman.php workerman.php
+```
+
+然后在 `bootstrap/app.php` 中注册服务提供者：
+
+```php
+$app->register(Qiuapeng\LaravelWorkerman\WorkermanServiceProvider::class);
+```
 
 ## 使用
 
@@ -133,11 +155,50 @@ src/
 ├── Bootstrap.php              # 引导类 - 环境检查、参数解析
 ├── Config/
 │   └── WorkermanConfig.php    # 配置管理器 - 多级配置覆盖
+├── Contracts/
+│   └── FrameworkAdapter.php   # 框架适配器接口
+├── Adapters/
+│   ├── AdapterFactory.php     # 适配器工厂 - 自动检测框架类型
+│   ├── LaravelAdapter.php     # Laravel 适配器
+│   └── LumenAdapter.php       # Lumen 适配器
 ├── WorkermanServer.php        # 服务器类 - Worker 生命周期管理
-├── LaravelAppManager.php      # Laravel 应用管理器
+├── AppManager.php             # 应用管理器 - 统一处理 Laravel/Lumen
 ├── StaticFileHandler.php      # 静态文件处理器
+├── Logger.php                 # 日志工具
 └── WorkermanServiceProvider.php
 ```
+
+## 架构说明
+
+### 适配器模式
+
+项目使用适配器模式来兼容 Laravel 和 Lumen 两个框架：
+
+```
+┌─────────────────┐
+│   AppManager    │
+└────────┬────────┘
+         │
+    ┌────▼────┐
+    │ Factory │ ──── 自动检测框架类型
+    └────┬────┘
+         │
+    ┌────┴────┐
+    │         │
+┌───▼───┐ ┌───▼───┐
+│Laravel│ │ Lumen │
+│Adapter│ │Adapter│
+└───────┘ └───────┘
+```
+
+**核心差异处理：**
+
+| 特性 | Laravel | Lumen |
+|------|---------|-------|
+| HTTP Kernel | ✅ 有 | ❌ 无 |
+| Facade | 默认启用 | 需手动启用 |
+| config_path() | ✅ 有 | ❌ 无 |
+| vendor:publish | ✅ 有 | ❌ 无 |
 
 ## 注意事项
 
@@ -151,15 +212,23 @@ src/
 - 避免在静态变量中存储请求相关数据，可能导致数据污染
 
 ### 4. 单例模式
-- 注意 Laravel 容器中的单例在多次请求间共享
+- 注意 Laravel/Lumen 容器中的单例在多次请求间共享
 
 ### 5. Windows 限制
 - Windows 下只能使用单进程模式
 - 不支持 `stop`、`restart`、`reload`、`status` 命令
 
+### 6. Lumen 特殊配置
+
+在 Lumen 中使用时，确保在 `bootstrap/app.php` 中启用 Facade（如果需要）：
+
+```php
+$app->withFacades();
+```
+
 ## 本地开发调试
 
-在 Laravel 项目中使用本地开发版本：
+在 Laravel/Lumen 项目中使用本地开发版本：
 
 ```json
 {
@@ -181,9 +250,22 @@ src/
 | 模式 | QPS | 响应时间 |
 |------|-----|----------|
 | PHP-FPM | 500 | 20ms |
-| Workerman | 5000+ | 2ms |
+| Workerman (Laravel) | 5000+ | 2ms |
+| Workerman (Lumen) | 8000+ | 1.5ms |
 
 > 测试环境：4 核 CPU，8GB 内存，简单 API 请求
+
+## Changelog
+
+### v1.1.0
+- ✨ 新增 Lumen 框架支持
+- ✨ 使用适配器模式重构代码
+- 📦 新增 `AppManager` 统一管理 Laravel/Lumen 应用
+- 📝 更新文档
+
+### v1.0.x
+- 🚀 初始版本
+- ✅ Laravel 支持
 
 ## License
 
