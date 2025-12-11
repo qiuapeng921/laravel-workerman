@@ -36,6 +36,6 @@ return [
 
     // 日志
     'log'          => [
-        'file' => $basePath . '/storage/logs/workerman.log',
+        'file' => $basePath . '/storage/workerman/workerman.log',
     ],
 ];
