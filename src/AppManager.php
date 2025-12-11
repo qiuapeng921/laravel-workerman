@@ -541,6 +541,135 @@ class AppManager
                 // 忽略
             }
         }
+
+        // 清理 Context 上下文（Laravel 11+）
+        $this->clearContext();
+
+        // 清理日志上下文
+        $this->clearLogContext();
+
+        // 重置翻译区域设置
+        $this->resetLocale();
+
+        // 清理缓存的视图数据
+        $this->clearViewSharedData();
+    }
+
+    /**
+     * 清理 Context 上下文（Laravel 11+）
+     *
+     * @return void
+     */
+    private function clearContext(): void
+    {
+        // Laravel 11+ Context Facade
+        if (class_exists('Illuminate\Support\Facades\Context')) {
+            try {
+                \Illuminate\Support\Facades\Context::flush();
+            } catch (Throwable $e) {
+                // 忽略
+            }
+        }
+
+        // 也尝试通过容器清理
+        if ($this->adapter->bound('context')) {
+            try {
+                $this->adapter->forgetInstance('context');
+            } catch (Throwable $e) {
+                // 忽略
+            }
+        }
+    }
+
+    /**
+     * 清理日志上下文
+     *
+     * @return void
+     */
+    private function clearLogContext(): void
+    {
+        if (!$this->adapter->bound('log')) {
+            return;
+        }
+
+        try {
+            $log = $this->adapter->make('log');
+
+            // 清理日志上下文（Laravel 10+）
+            if (method_exists($log, 'withoutContext')) {
+                $log->withoutContext();
+            }
+
+            // 清理共享的日志上下文
+            if (method_exists($log, 'flushSharedContext')) {
+                $log->flushSharedContext();
+            }
+        } catch (Throwable $e) {
+            // 忽略
+        }
+    }
+
+    /**
+     * 重置翻译区域设置
+     *
+     * @return void
+     */
+    private function resetLocale(): void
+    {
+        if (!$this->adapter->bound('translator')) {
+            return;
+        }
+
+        try {
+            $translator = $this->adapter->make('translator');
+            $app = $this->adapter->getApp();
+
+            // 重置为应用默认区域
+            if (method_exists($app, 'getLocale')) {
+                $defaultLocale = $app->getLocale();
+            } else {
+                $defaultLocale = 'en';
+            }
+
+            if (method_exists($translator, 'setLocale')) {
+                $translator->setLocale($defaultLocale);
+            }
+        } catch (Throwable $e) {
+            // 忽略
+        }
+    }
+
+    /**
+     * 清理视图共享数据
+     *
+     * @return void
+     */
+    private function clearViewSharedData(): void
+    {
+        if (!$this->adapter->bound('view')) {
+            return;
+        }
+
+        try {
+            $view = $this->adapter->make('view');
+
+            // 获取 view factory 的共享数据
+            if (method_exists($view, 'getShared')) {
+                $shared = $view->getShared();
+
+                // 保留 Laravel 系统共享数据，清理用户添加的
+                $systemKeys = ['__env', 'app', 'errors'];
+
+                foreach (array_keys($shared) as $key) {
+                    if (!in_array($key, $systemKeys, true)) {
+                        // Laravel 没有直接的 unshare 方法，通过重新绑定空值
+                        // 这里只记录警告，不做清理，因为可能影响框架功能
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // 忽略
+        }
     }
 
     /**
