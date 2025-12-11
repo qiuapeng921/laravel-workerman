@@ -21,7 +21,7 @@
 ## 安装
 
 ```bash
-composer require qiuapeng921/laravel-workerman
+composer require qiuapeng921/laravel-workerman:2.x-dev
 ```
 
 ## 配置
