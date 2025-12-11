@@ -1,5 +1,5 @@
 {
-    "name": "qiuapeng921/workerman-laravel",
+    "name": "qiuapeng921/laravel-workerman",
     "description": "使用 Workerman 加速 Laravel 应用，常驻内存模式提升 5-20 倍性能",
     "type": "library",
     "license": "MIT",
@@ -23,13 +23,13 @@
     },
     "autoload": {
         "psr-4": {
-            "Qiuapeng\\WorkermanLaravel\\": "src/"
+            "Qiuapeng\\LaravelWorkerman\\": "src/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Qiuapeng\\WorkermanLaravel\\WorkermanServiceProvider"
+                "Qiuapeng\\LaravelWorkerman\\WorkermanServiceProvider"
             ]
         }
     },

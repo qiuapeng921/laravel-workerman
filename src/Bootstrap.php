@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Qiuapeng\WorkermanLaravel;
+namespace Qiuapeng\LaravelWorkerman;
 
 use Workerman\Worker;
 use Qiuapeng\WorkermanLaravel\Config\WorkermanConfig;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Qiuapeng\WorkermanLaravel\Config;
+namespace Qiuapeng\LaravelWorkerman\Config;
 
 /**
  * Workerman 配置管理器

@@ -1,6 +1,6 @@
 <?php
 
-namespace Qiuapeng\WorkermanLaravel;
+namespace Qiuapeng\LaravelWorkerman;
 
 use Throwable;
 use Workerman\Worker;

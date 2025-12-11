@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Qiuapeng\WorkermanLaravel;
+namespace Qiuapeng\LaravelWorkerman;
 
 use Throwable;
 use Workerman\Worker;

@@ -28,7 +28,7 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 // 使用 Bootstrap 类启动服务器
-use Qiuapeng\WorkermanLaravel\Bootstrap;
+use Qiuapeng\LaravelWorkerman\Bootstrap;
 
 $bootstrap = new Bootstrap(__DIR__, $argv ?? []);
 $bootstrap->run();

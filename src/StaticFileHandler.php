@@ -1,6 +1,6 @@
 <?php
 
-namespace Qiuapeng\WorkermanLaravel;
+namespace Qiuapeng\LaravelWorkerman;
 
 use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
