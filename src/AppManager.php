@@ -6,7 +6,6 @@ namespace Qiuapeng\LaravelWorkerman;
 
 use Throwable;
 use Workerman\Worker;
-use Workerman\Timer;
 use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use Illuminate\Support\Facades\Facade;

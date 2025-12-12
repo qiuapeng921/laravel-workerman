@@ -135,6 +135,13 @@ final class WorkermanServer
         );
 
         try {
+            if (function_exists('opcache_reset')) {
+                opcache_reset();
+            }
+            if (function_exists('apc_clear_cache')) {
+                apc_clear_cache();
+            }
+
             $startTime = microtime(true);
 
             $this->appManager->initialize();
