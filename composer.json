@@ -1,44 +1,44 @@
 {
-    "name": "qiuapeng/laravel-workerman",
-    "description": "使用 Workerman 加速 Laravel/Lumen 应用，常驻内存模式提升 5-20 倍性能",
-    "type": "library",
-    "license": "MIT",
-    "keywords": [
-        "laravel",
-        "lumen",
-        "workerman",
-        "performance",
-        "acceleration"
-    ],
-    "authors": [
-        {
-            "name": "qiuapeng921",
-            "email": "1047871481@qq.com"
-        }
-    ],
-    "require": {
-        "php": ">=8.1",
-        "ext-json": "*",
-        "workerman/workerman": "^5.0",
-        "illuminate/support": "^10.0|^11.0|^12.0"
-    },
-    "suggest": {
-        "laravel/lumen-framework": "如果使用 Lumen 框架，需要安装此依赖"
-    },
-    "autoload": {
-        "psr-4": {
-            "Qiuapeng\\LaravelWorkerman\\": "src/"
-        }
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "Qiuapeng\\LaravelWorkerman\\WorkermanServiceProvider"
-            ]
-        }
-    },
-    "config": {
-        "sort-packages": true
-    },
-    "minimum-stability": "stable"
+  "name": "qiuapeng/laravel-workerman",
+  "description": "使用 Workerman 加速 Laravel/Lumen 应用，常驻内存模式提升 5-20 倍性能",
+  "type": "library",
+  "license": "MIT",
+  "keywords": [
+    "laravel",
+    "lumen",
+    "workerman",
+    "performance",
+    "acceleration"
+  ],
+  "authors": [
+    {
+      "name": "qiuapeng921",
+      "email": "1047871481@qq.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1",
+    "ext-json": "*",
+    "workerman/workerman": "^5.0",
+    "illuminate/support": "^10.0|^11.0|^12.0"
+  },
+  "suggest": {
+    "laravel/lumen-framework": "如果使用 Lumen 框架，需要安装此依赖"
+  },
+  "autoload": {
+    "psr-4": {
+      "Qiuapeng\\LaravelWorkerman\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Qiuapeng\\LaravelWorkerman\\WorkermanServiceProvider"
+      ]
+    }
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "stable"
 }
