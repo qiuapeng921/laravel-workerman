@@ -7,6 +7,7 @@ namespace Qiuapeng\LaravelWorkerman;
 use Throwable;
 use Workerman\Worker;
 use Workerman\Protocols\Http\Request;
+use Workerman\Protocols\Http\Response;
 use Workerman\Connection\TcpConnection;
 use Qiuapeng\LaravelWorkerman\Config\WorkermanConfig;
 
@@ -28,6 +29,15 @@ final class WorkermanServer
     /** @var AppManager|null 应用管理器 (每个 Worker 进程独立，支持 Laravel/Lumen) */
     private $appManager = null;
 
+    /** @var float 服务器启动时间 */
+    private $serverStartTime;
+
+    /** @var string 健康检查端点路径 */
+    private const HEALTH_CHECK_PATH = '/health';
+
+    /** @var string 状态端点路径 */
+    private const STATUS_PATH = '/_status';
+
     /**
      * 构造函数
      *
@@ -36,6 +46,7 @@ final class WorkermanServer
     public function __construct(WorkermanConfig $config)
     {
         $this->config = $config;
+        $this->serverStartTime = microtime(true);
     }
 
     /**
@@ -67,8 +78,12 @@ final class WorkermanServer
         Worker::$logFile = $this->config->getLogFile();
         Worker::$stdoutFile = $this->config->getStdoutFile();
 
-        // 设置 Logger 调试模式
-        Logger::setDebug($this->config->isDebug());
+        // 初始化 Logger（设置调试模式和日志文件）
+        Logger::init(
+            $this->config->isDebug(),
+            $this->config->getLogFile(),
+            $this->config->isDebug() ? Logger::LEVEL_DEBUG : Logger::LEVEL_INFO
+        );
     }
 
     /**
@@ -141,7 +156,7 @@ final class WorkermanServer
     /**
      * HTTP 请求回调
      *
-     * 处理每个 HTTP 请求，优先检查静态文件，否则交由应用处理
+     * 处理每个 HTTP 请求，支持健康检查、静态文件和动态请求
      *
      * @param TcpConnection $connection TCP 连接对象
      * @param Request       $request    HTTP 请求对象
@@ -150,6 +165,20 @@ final class WorkermanServer
      */
     private function onMessage(TcpConnection $connection, Request $request): void
     {
+        $path = parse_url($request->uri(), PHP_URL_PATH);
+
+        // 健康检查端点（优先处理，不经过 Laravel）
+        if ($path === self::HEALTH_CHECK_PATH) {
+            $connection->send($this->handleHealthCheck());
+            return;
+        }
+
+        // 状态端点（仅调试模式可用）
+        if ($path === self::STATUS_PATH && $this->config->isDebug()) {
+            $connection->send($this->handleStatus());
+            return;
+        }
+
         // 尝试处理静态文件
         if ($this->config->isStaticEnabled()) {
             $staticResponse = StaticFileHandler::handle($request, $this->config->getStaticPath());
@@ -165,6 +194,92 @@ final class WorkermanServer
     }
 
     /**
+     * 处理健康检查请求
+     *
+     * 返回服务器健康状态，供负载均衡器和监控系统使用
+     *
+     * @return Response
+     */
+    private function handleHealthCheck(): Response
+    {
+        $uptime = round(microtime(true) - $this->serverStartTime, 2);
+        $memoryUsage = round(memory_get_usage(true) / 1024 / 1024, 2);
+        $memoryPeak = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
+
+        $health = [
+            'status'    => 'healthy',
+            'timestamp' => date('c'),
+            'uptime'    => $uptime,
+            'memory'    => [
+                'current_mb' => $memoryUsage,
+                'peak_mb'    => $memoryPeak,
+            ],
+            'worker'    => [
+                'pid'      => getmypid(),
+                'requests' => $this->appManager !== null ? $this->appManager->getRequestCount() : 0,
+            ],
+        ];
+
+        $response = new Response(200);
+        $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        $response->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        $response->withBody(json_encode($health, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        return $response;
+    }
+
+    /**
+     * 处理状态请求（仅调试模式）
+     *
+     * 返回详细的服务器状态信息
+     *
+     * @return Response
+     */
+    private function handleStatus(): Response
+    {
+        $stats = $this->appManager !== null ? $this->appManager->getStats() : [];
+        $uptime = round(microtime(true) - $this->serverStartTime, 2);
+
+        $status = [
+            'status'    => 'ok',
+            'timestamp' => date('c'),
+            'uptime'    => $uptime,
+            'config'    => [
+                'host'         => $this->config->getHost(),
+                'port'         => $this->config->getPort(),
+                'workers'      => $this->config->getWorkerCount(),
+                'max_requests' => $this->config->getMaxRequests(),
+                'debug'        => $this->config->isDebug(),
+            ],
+            'memory'    => [
+                'current_mb' => round(memory_get_usage(true) / 1024 / 1024, 2),
+                'peak_mb'    => round(memory_get_peak_usage(true) / 1024 / 1024, 2),
+            ],
+            'stats'     => [
+                'total_requests' => $stats['total_requests'] ?? 0,
+                'avg_time_ms'    => $this->calculateAverageTime($stats),
+                'min_time_ms'    => $stats['min_time_ms'] ?? 0,
+                'max_time_ms'    => $stats['max_time_ms'] ?? 0,
+            ],
+            'worker'    => [
+                'pid'       => getmypid(),
+                'framework' => $this->appManager !== null ? $this->appManager->getFrameworkType() : 'unknown',
+            ],
+            'php'       => [
+                'version'    => PHP_VERSION,
+                'extensions' => get_loaded_extensions(),
+            ],
+        ];
+
+        $response = new Response(200);
+        $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        $response->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        $response->withBody(json_encode($status, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        return $response;
+    }
+
+    /**
      * Worker 停止回调
      *
      * 在 Worker 进程停止时调用，输出统计信息
@@ -175,6 +290,9 @@ final class WorkermanServer
      */
     private function onWorkerStop(Worker $worker): void
     {
+        // 清理静态文件处理器缓存
+        StaticFileHandler::clearCache();
+
         if ($this->appManager === null || $this->appManager->getRequestCount() === 0) {
             return;
         }

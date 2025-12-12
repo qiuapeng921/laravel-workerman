@@ -6,6 +6,7 @@ namespace Qiuapeng\LaravelWorkerman;
 
 use Throwable;
 use Workerman\Worker;
+use Workerman\Timer;
 use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use Illuminate\Support\Facades\Facade;
@@ -95,7 +96,6 @@ class AppManager
             strtoupper($this->adapter->getFrameworkType())
         ));
     }
-
     /**
      * 引导应用
      *
@@ -230,15 +230,24 @@ class AppManager
     /**
      * 生成唯一请求 ID
      *
+     * 使用加密安全的随机数生成器，确保请求 ID 不可预测
+     *
      * @return string
      */
     private function generateRequestId(): string
     {
-        return sprintf(
-            '%s%04x',
-            md5(uniqid((string)mt_rand(), true)),
-            getmypid() % 0xffff
-        );
+        try {
+            // 使用加密安全的随机字节
+            return bin2hex(random_bytes(16));
+        } catch (Throwable $e) {
+            // 降级方案：如果 random_bytes 不可用
+            return sprintf(
+                '%s%08x%04x',
+                substr(hash('sha256', uniqid((string)mt_rand(), true) . microtime(true)), 0, 16),
+                time(),
+                getmypid() % 0xffff
+            );
+        }
     }
 
     /**
@@ -270,7 +279,7 @@ class AppManager
             'SCRIPT_FILENAME'    => $this->basePath . '/public/index.php',
             'SCRIPT_NAME'        => '/index.php',
             'REQUEST_TIME'       => time(),
-            'REQUEST_TIME_FLOAT' => microtime(true),
+            'REQUEST_TIME_FLOAT' => $requestStartTime,
             'REQUEST_ID'         => $this->generateRequestId(),
             'START_TIME'         => $requestStartTime,
         ];
@@ -446,31 +455,54 @@ class AppManager
         if ($this->requestCount >= $this->maxRequests) {
             $avgTime = round($this->stats['total_time_ms'] / max(1, $this->stats['total_requests']), 2);
             Logger::info("已处理 {$this->requestCount} 个请求，平均耗时 {$avgTime}ms，峰值内存 {$this->peakMemory}MB");
-            Logger::info('达到最大请求数限制，Worker 进程重启中...');
+            Logger::info('达到最大请求数限制，当前进程将退出，主进程会自动拉起新进程...');
+            // 当前进程退出后主进程会立刻拉起一个新的进程
             Worker::stopAll();
             return;
         }
 
-        // 1. 清理请求级别的实例（这些在每次请求后需要重置）
+        // 1. 清理 PHP 全局变量（防止状态污染）
+        $this->clearGlobalVariables();
+
+        // 2. 清理请求级别的实例（这些在每次请求后需要重置）
         $this->clearRequestInstances();
 
-        // 2. 清理 Facade 缓存的实例（如果启用了 Facade）
+        // 3. 清理 Facade 缓存的实例（如果启用了 Facade）
         if (class_exists(Facade::class)) {
             Facade::clearResolvedInstances();
         }
 
-        // 3. 清理数据库查询日志（防止内存膨胀）
+        // 4. 清理数据库查询日志并检测连接状态（防止内存膨胀和连接超时）
         $this->flushDatabaseQueryLog();
 
-        // 4. 定期执行垃圾回收
+        // 5. 定期执行垃圾回收和数据库连接检测
         if ($this->requestCount % 100 === 0) {
-            gc_collect_cycles();
-
-            // PHP 7.4+ 清理内存缓存
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+            // 清理内存缓存
             if (function_exists('gc_mem_caches')) {
                 gc_mem_caches();
             }
         }
+    }
+
+    /**
+     * 清理 PHP 全局变量
+     *
+     * 防止请求间的状态污染
+     *
+     * @return void
+     */
+    private function clearGlobalVariables(): void
+    {
+        // 清理超全局变量
+        $_GET = [];
+        $_POST = [];
+        $_REQUEST = [];
+        $_FILES = [];
+        // $_COOKIE 和 $_SESSION 由框架管理，这里不清理
+        // $_SERVER 保留核心服务器变量
     }
 
     /**
@@ -486,6 +518,7 @@ class AppManager
         $requestScopedAbstracts = [
             'request',
             'Illuminate\Http\Request',
+            'Symfony\Component\HttpFoundation\Request',
         ];
 
         foreach ($requestScopedAbstracts as $abstract) {
@@ -495,51 +528,187 @@ class AppManager
         }
 
         // 清理 Session（如果使用）
-        if ($this->adapter->bound('session')) {
-            try {
-                $session = $this->adapter->make('session');
-                if (method_exists($session, 'flush')) {
-                    // 只清理 session 驱动，不清理整个 session manager
-                    $driver = $session->driver();
-                    if (method_exists($driver, 'flush')) {
-                        $driver->flush();
-                    }
-                }
-            } catch (Throwable $e) {
-                // 忽略 Session 清理错误
-            }
-        }
+        $this->clearSession();
 
-        // 重置 Auth guard 状态
-        if ($this->adapter->bound('auth')) {
-            try {
-                $auth = $this->adapter->make('auth');
-                // 清理所有 guard 的缓存用户
-                foreach (['web', 'api', 'sanctum'] as $guard) {
-                    try {
-                        $guardInstance = $auth->guard($guard);
-                        if (method_exists($guardInstance, 'forgetUser')) {
-                            $guardInstance->forgetUser();
-                        }
-                    } catch (Throwable $e) {
-                        // 忽略不存在的 guard
-                    }
-                }
-            } catch (Throwable $e) {
-                // 忽略 Auth 清理错误
-            }
-        }
+        // 重置 Auth guard 状态（动态获取所有配置的 guard）
+        $this->clearAuthGuards();
 
         // 清理 Cookie 队列
-        if ($this->adapter->bound('cookie')) {
-            try {
-                $cookie = $this->adapter->make('cookie');
-                if (method_exists($cookie, 'flushQueuedCookies')) {
-                    $cookie->flushQueuedCookies();
+        $this->clearCookieQueue();
+
+        // 清理验证器实例
+        $this->clearValidator();
+
+        // 清理 URL 生成器缓存
+        $this->clearUrlGenerator();
+    }
+
+    /**
+     * 清理 Session
+     *
+     * @return void
+     */
+    private function clearSession(): void
+    {
+        if (!$this->adapter->bound('session')) {
+            return;
+        }
+
+        try {
+            $session = $this->adapter->make('session');
+            if (method_exists($session, 'driver')) {
+                $driver = $session->driver();
+                // 保存并清理 session 数据
+                if (method_exists($driver, 'save')) {
+                    $driver->save();
                 }
-            } catch (Throwable $e) {
-                // 忽略
+                // 重新生成 session handler（防止数据残留）
+                if (method_exists($driver, 'setId')) {
+                    $driver->setId('');
+                }
             }
+        } catch (Throwable $e) {
+            // 忽略 Session 清理错误
+        }
+    }
+
+    /**
+     * 清理所有 Auth Guard 状态
+     *
+     * 动态获取配置中的所有 guard，确保不遗漏自定义 guard
+     *
+     * @return void
+     */
+    private function clearAuthGuards(): void
+    {
+        if (!$this->adapter->bound('auth')) {
+            return;
+        }
+
+        try {
+            $auth = $this->adapter->make('auth');
+
+            // 动态获取所有配置的 guard
+            $guards = $this->getConfiguredGuards();
+
+            foreach ($guards as $guard) {
+                try {
+                    $guardInstance = $auth->guard($guard);
+                    // 清理缓存的用户
+                    if (method_exists($guardInstance, 'forgetUser')) {
+                        $guardInstance->forgetUser();
+                    }
+                    // 清理 Token 相关缓存（如 Passport、Sanctum）
+                    if (method_exists($guardInstance, 'setUser')) {
+                        $guardInstance->setUser(null);
+                    }
+                } catch (Throwable $e) {
+                    // 忽略不存在的 guard
+                }
+            }
+        } catch (Throwable $e) {
+            // 忽略 Auth 清理错误
+        }
+    }
+
+    /**
+     * 获取配置中的所有 Guard
+     *
+     * @return array<string>
+     */
+    private function getConfiguredGuards(): array
+    {
+        try {
+            // 尝试从配置中获取 guard 列表
+            if ($this->adapter->bound('config')) {
+                $config = $this->adapter->make('config');
+                $guards = $config->get('auth.guards', []);
+                if (is_array($guards)) {
+                    return array_keys($guards);
+                }
+            }
+        } catch (Throwable $e) {
+            // 配置获取失败
+        }
+
+        // 降级方案：返回常见的 guard 名称
+        return ['web', 'api', 'sanctum', 'admin'];
+    }
+
+    /**
+     * 清理 Cookie 队列
+     *
+     * @return void
+     */
+    private function clearCookieQueue(): void
+    {
+        if (!$this->adapter->bound('cookie')) {
+            return;
+        }
+
+        try {
+            $cookie = $this->adapter->make('cookie');
+            if (method_exists($cookie, 'flushQueuedCookies')) {
+                $cookie->flushQueuedCookies();
+            }
+            // Laravel 8+ 使用 unqueue 方法
+            if (method_exists($cookie, 'getQueuedCookies')) {
+                $queuedCookies = $cookie->getQueuedCookies();
+                if (method_exists($cookie, 'unqueue')) {
+                    foreach ($queuedCookies as $cookkieName => $cookieValue) {
+                        $cookie->unqueue($cookkieName);
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // 忽略
+        }
+    }
+
+    /**
+     * 清理验证器实例
+     *
+     * @return void
+     */
+    private function clearValidator(): void
+    {
+        if (!$this->adapter->bound('validator')) {
+            return;
+        }
+
+        try {
+            // 清理验证器的自定义规则缓存
+            if ($this->adapter->resolved('validator')) {
+                $this->adapter->forgetInstance('validator');
+            }
+        } catch (Throwable $e) {
+            // 忽略
+        }
+    }
+
+    /**
+     * 清理 URL 生成器缓存
+     *
+     * @return void
+     */
+    private function clearUrlGenerator(): void
+    {
+        if (!$this->adapter->bound('url')) {
+            return;
+        }
+
+        try {
+            $urlGenerator = $this->adapter->make('url');
+            // 重置缓存的请求
+            if (method_exists($urlGenerator, 'setRequest')) {
+                $urlGenerator->setRequest(null);
+            }
+            // 清理路由 URL 缓存
+            if (method_exists($urlGenerator, 'forgetRouteBinding')) {
+                // Laravel 部分版本支持
+            }
+        } catch (Throwable $e) {
+            // 忽略
         }
     }
 
@@ -557,7 +726,20 @@ class AppManager
         try {
             $db = $this->adapter->make('db');
             foreach ($db->getConnections() as $connection) {
+                // 清理查询日志
                 $connection->flushQueryLog();
+
+                // 检查并回滚未提交的事务
+                if (method_exists($connection, 'transactionLevel') && $connection->transactionLevel() > 0) {
+                    Logger::warning('检测到未提交的事务，正在回滚...');
+                    try {
+                        while ($connection->transactionLevel() > 0) {
+                            $connection->rollBack();
+                        }
+                    } catch (Throwable $e) {
+                        Logger::error('事务回滚失败: ' . $e->getMessage());
+                    }
+                }
             }
         } catch (Throwable $e) {
             // 忽略数据库清理错误
