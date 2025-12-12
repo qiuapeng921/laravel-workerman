@@ -7,8 +7,8 @@
 | 依赖 | 版本             |
 |------|----------------|
 | PHP | ^8.1           |
-| Laravel | ^10.0 \| ^11.0 |
-| Lumen | ^10.0 \| ^11.0 |
+| Laravel | ^10.0 |
+| Lumen | ^10.0 |
 | Workerman | ^5.0           |
 
 ## 特性
@@ -21,9 +21,14 @@
 - 🔀 **双框架支持**: 同时兼容 Laravel 和 Lumen 框架
 
 ## 安装
-
 ```bash
-composer require "qiuapeng921/laravel-workerman:2.x-dev"
+# PHP >=8.1
+composer -vvv require "qiuapeng921/laravel-workerman:^2.0"
+
+# PHP >=7.0.0,<=7.4.33
+composer -vvv require "qiuapeng921/laravel-workerman:^1.0"
+
+# 确保你的composer.lock文件是在版本控制中
 ```
 
 ## 配置
@@ -224,6 +229,11 @@ src/
 
 ```php
 $app->withFacades();
+```
+### 7. 疑难问题
+```text
+1. 如果安装了grpc扩展，启动需要加上 GRPC_ENABLE_FORK_SUPPORT=1 GRPC_POLL_STRATEGY=epoll1 因为grpc会fock一个子进程
+   例如GRPC_ENABLE_FORK_SUPPORT=1 GRPC_POLL_STRATEGY=epoll1 php workerman.php start -d
 ```
 
 ## 本地开发调试
