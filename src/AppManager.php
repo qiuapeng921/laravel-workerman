@@ -40,9 +40,9 @@ class AppManager
     /** @var array<string, mixed> 性能统计 */
     private $stats = [
         'total_requests' => 0,
-        'total_time_ms' => 0,
-        'min_time_ms' => PHP_FLOAT_MAX,
-        'max_time_ms' => 0,
+        'total_time_ms'  => 0,
+        'min_time_ms'    => PHP_FLOAT_MAX,
+        'max_time_ms'    => 0,
     ];
 
     /** @var string 基础路径 */
@@ -110,7 +110,7 @@ class AppManager
             [],
             [],
             [
-                'HTTP_HOST' => 'localhost',
+                'HTTP_HOST'   => 'localhost',
                 'SERVER_NAME' => 'localhost',
                 'SERVER_PORT' => $this->port,
                 'SCRIPT_NAME' => '/index.php',
@@ -236,7 +236,7 @@ class AppManager
     {
         return sprintf(
             '%s%04x',
-            md5(uniqid((string) mt_rand(), true)),
+            md5(uniqid((string)mt_rand(), true)),
             getmypid() % 0xffff
         );
     }
@@ -256,23 +256,23 @@ class AppManager
         $remotePort = $connection !== null ? $connection->getRemotePort() : 0;
 
         $server = [
-            'REQUEST_METHOD' => $workermanRequest->method(),
-            'REQUEST_URI' => $workermanRequest->uri(),
-            'QUERY_STRING' => $workermanRequest->queryString() ?? '',
-            'SERVER_PROTOCOL' => 'HTTP/1.1',
-            'SERVER_NAME' => $workermanRequest->host() ?? 'localhost',
-            'HTTP_HOST' => $workermanRequest->host() ?? 'localhost',
-            'HTTPS' => 'off',
-            'REMOTE_ADDR' => $remoteIp,
-            'REMOTE_PORT' => $remotePort,
-            'SERVER_PORT' => $this->port,
-            'DOCUMENT_ROOT' => $this->basePath . '/public',
-            'SCRIPT_FILENAME' => $this->basePath . '/public/index.php',
-            'SCRIPT_NAME' => '/index.php',
-            'REQUEST_TIME' => time(),
+            'REQUEST_METHOD'     => $workermanRequest->method(),
+            'REQUEST_URI'        => $workermanRequest->uri(),
+            'QUERY_STRING'       => $workermanRequest->queryString() ?? '',
+            'SERVER_PROTOCOL'    => 'HTTP/1.1',
+            'SERVER_NAME'        => $workermanRequest->host() ?? 'localhost',
+            'HTTP_HOST'          => $workermanRequest->host() ?? 'localhost',
+            'HTTPS'              => 'off',
+            'REMOTE_ADDR'        => $remoteIp,
+            'REMOTE_PORT'        => $remotePort,
+            'SERVER_PORT'        => $this->port,
+            'DOCUMENT_ROOT'      => $this->basePath . '/public',
+            'SCRIPT_FILENAME'    => $this->basePath . '/public/index.php',
+            'SCRIPT_NAME'        => '/index.php',
+            'REQUEST_TIME'       => time(),
             'REQUEST_TIME_FLOAT' => microtime(true),
-            'REQUEST_ID' => $this->generateRequestId(),
-            'START_TIME' => $requestStartTime,
+            'REQUEST_ID'         => $this->generateRequestId(),
+            'START_TIME'         => $requestStartTime,
         ];
 
         foreach ($workermanRequest->header() as $name => $value) {
@@ -583,7 +583,7 @@ class AppManager
         $response = new Response(500);
         $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         $response->withBody(json_encode([
-            'code' => 500,
+            'code'    => 500,
             'message' => 'Internal Server Error',
         ], JSON_UNESCAPED_UNICODE));
 
