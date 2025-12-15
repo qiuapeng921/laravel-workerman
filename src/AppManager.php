@@ -263,7 +263,13 @@ class AppManager
         $remoteIp = $connection !== null ? $connection->getRemoteIp() : '127.0.0.1';
         $remotePort = $connection !== null ? $connection->getRemotePort() : 0;
 
-        $server = [
+        $_GET = $workermanRequest->get() ?? [];
+        $_POST = $workermanRequest->post() ?? [];
+        $_COOKIE = $workermanRequest->cookie() ?? [];
+        $_FILES = $workermanRequest->file() ?? [];
+        $rawBody = $workermanRequest->rawBody();
+
+        $_SERVER = [
             'REQUEST_METHOD'     => $workermanRequest->method(),
             'REQUEST_URI'        => $workermanRequest->uri(),
             'QUERY_STRING'       => $workermanRequest->queryString() ?? '',
@@ -285,26 +291,14 @@ class AppManager
 
         foreach ($workermanRequest->header() as $name => $value) {
             $name = strtoupper(str_replace('-', '_', $name));
-            $server['HTTP_' . $name] = $value;
+            $_SERVER['HTTP_' . $name] = $value;
         }
 
         if ($contentType = $workermanRequest->header('content-type')) {
-            $server['CONTENT_TYPE'] = $contentType;
+            $_SERVER['CONTENT_TYPE'] = $contentType;
         }
         if ($contentLength = $workermanRequest->header('content-length')) {
-            $server['CONTENT_LENGTH'] = $contentLength;
-        }
-
-        $query = $workermanRequest->get() ?? [];
-        $post = $workermanRequest->post() ?? [];
-        $rawBody = $workermanRequest->rawBody();
-
-        $contentType = $server['CONTENT_TYPE'] ?? '';
-        if (stripos($contentType, 'application/json') !== false && !empty($rawBody)) {
-            $jsonData = json_decode($rawBody, true);
-            if (is_array($jsonData)) {
-                $post = array_merge($post, $jsonData);
-            }
+            $_SERVER['CONTENT_LENGTH'] = $contentLength;
         }
 
         // Fix argv & argc
@@ -313,11 +307,10 @@ class AppManager
             $_SERVER['argc'] = $GLOBALS['argc'] ?? 0;
         }
 
-        $cookies = $workermanRequest->cookie() ?? [];
-        $files = $this->convertUploadedFiles($workermanRequest->file() ?? []);
+        $files = $this->convertUploadedFiles($_FILES);
 
-        $laravelRequest = new \Illuminate\Http\Request($query, $post, [], $cookies, $files, $server, $rawBody);
-        $laravelRequest->setMethod($workermanRequest->method());
+        $laravelRequest = new \Illuminate\Http\Request($_GET, $_POST, [], $_COOKIE, $files, $_SERVER, $rawBody);
+        $laravelRequest->enableHttpMethodParameterOverride();
 
         return $laravelRequest;
     }
