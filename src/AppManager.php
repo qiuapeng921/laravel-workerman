@@ -307,6 +307,12 @@ class AppManager
             }
         }
 
+        // Fix argv & argc
+        if (!isset($_SERVER['argv'])) {
+            $_SERVER['argv'] = $GLOBALS['argv'] ?? [];
+            $_SERVER['argc'] = $GLOBALS['argc'] ?? 0;
+        }
+
         $cookies = $workermanRequest->cookie() ?? [];
         $files = $this->convertUploadedFiles($workermanRequest->file() ?? []);
 
