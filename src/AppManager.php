@@ -13,6 +13,7 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\UploadedFile;
 use Qiuapeng\LaravelWorkerman\Contracts\FrameworkAdapter;
 use Qiuapeng\LaravelWorkerman\Adapters\AdapterFactory;
+use Qiuapeng\LaravelWorkerman\CleanerManager;
 
 /**
  * 应用管理器
@@ -23,22 +24,25 @@ use Qiuapeng\LaravelWorkerman\Adapters\AdapterFactory;
 class AppManager
 {
     /** @var FrameworkAdapter 框架适配器 */
-    private FrameworkAdapter $adapter;
+    private $adapter;
+
+    /** @var CleanerManager 清理器管理器 */
+    private $cleanerManager;
 
     /** @var bool 是否已初始化 */
-    private bool $initialized = false;
+    private $initialized = false;
 
     /** @var int 当前进程已处理的请求数 */
-    private int $requestCount = 0;
+    private $requestCount = 0;
 
     /** @var int 最大请求数 */
-    private int $maxRequests;
+    private $maxRequests;
 
     /** @var float 峰值内存 */
-    private float $peakMemory = 0;
+    private $peakMemory = 0;
 
     /** @var array<string, mixed> 性能统计 */
-    private array $stats = [
+    private $stats = [
         'total_requests' => 0,
         'total_time_ms' => 0,
         'min_time_ms' => PHP_FLOAT_MAX,
@@ -46,26 +50,36 @@ class AppManager
     ];
 
     /** @var string 基础路径 */
-    private string $basePath;
+    private $basePath;
 
     /** @var int 监听端口 */
-    private int $port;
+    private $port;
 
     /** @var bool 是否开启调试模式 */
-    private bool $debug;
+    private $debug;
+
+    /** @var array<string> 自定义清理器类名列表 */
+    private $cleaners;
 
     /**
-     * @param string $basePath    Laravel/Lumen 项目根目录
-     * @param int    $maxRequests 最大请求数
-     * @param int    $port        监听端口
-     * @param bool   $debug       调试模式
+     * @param string        $basePath    Laravel/Lumen 项目根目录
+     * @param int           $maxRequests 最大请求数
+     * @param int           $port        监听端口
+     * @param bool          $debug       调试模式
+     * @param array<string> $cleaners    自定义清理器类名列表
      */
-    public function __construct(string $basePath, int $maxRequests = 10000, int $port = 8080, bool $debug = false)
-    {
+    public function __construct(
+        string $basePath,
+        int $maxRequests = 10000,
+        int $port = 8080,
+        bool $debug = false,
+        array $cleaners = []
+    ) {
         $this->basePath = $basePath;
         $this->maxRequests = $maxRequests;
         $this->port = $port;
         $this->debug = $debug || getenv('WORKERMAN_DEBUG') === 'true';
+        $this->cleaners = $cleaners;
     }
 
     /**
@@ -87,6 +101,12 @@ class AppManager
 
         // 引导应用
         $this->bootstrapApp();
+
+        // 初始化清理器管理器
+        $this->cleanerManager = new CleanerManager();
+
+        // 加载用户自定义清理器
+        $this->cleanerManager->loadCleaners($this->cleaners);
 
         $this->initialized = true;
 
@@ -160,6 +180,7 @@ class AppManager
 
             $requestTime = (microtime(true) - $requestStartTime) * 1000;
             $this->updateStats($requestTime);
+
             $this->cleanupRequest();
 
             // 调试模式：打印响应信息
@@ -230,15 +251,24 @@ class AppManager
     /**
      * 生成唯一请求 ID
      *
+     * 使用加密安全的随机数生成器，确保请求 ID 不可预测
+     *
      * @return string
      */
     private function generateRequestId(): string
     {
-        return sprintf(
-            '%s%04x',
-            md5(uniqid((string) mt_rand(), true)),
-            getmypid() % 0xffff
-        );
+        try {
+            // 使用加密安全的随机字节
+            return bin2hex(random_bytes(16));
+        } catch (Throwable $e) {
+            // 降级方案：如果 random_bytes 不可用
+            return sprintf(
+                '%s%08x%04x',
+                substr(hash('sha256', uniqid((string) mt_rand(), true) . microtime(true)), 0, 16),
+                time(),
+                getmypid() % 0xffff
+            );
+        }
     }
 
     /**
@@ -255,7 +285,13 @@ class AppManager
         $remoteIp = $connection !== null ? $connection->getRemoteIp() : '127.0.0.1';
         $remotePort = $connection !== null ? $connection->getRemotePort() : 0;
 
-        $server = [
+        $_GET = $workermanRequest->get() ?? [];
+        $_POST = $workermanRequest->post() ?? [];
+        $_COOKIE = $workermanRequest->cookie() ?? [];
+        $_FILES = $workermanRequest->file() ?? [];
+        $rawBody = $workermanRequest->rawBody();
+
+        $_SERVER = [
             'REQUEST_METHOD' => $workermanRequest->method(),
             'REQUEST_URI' => $workermanRequest->uri(),
             'QUERY_STRING' => $workermanRequest->queryString() ?? '',
@@ -270,40 +306,33 @@ class AppManager
             'SCRIPT_FILENAME' => $this->basePath . '/public/index.php',
             'SCRIPT_NAME' => '/index.php',
             'REQUEST_TIME' => time(),
-            'REQUEST_TIME_FLOAT' => microtime(true),
+            'REQUEST_TIME_FLOAT' => $requestStartTime,
             'REQUEST_ID' => $this->generateRequestId(),
             'START_TIME' => $requestStartTime,
         ];
 
         foreach ($workermanRequest->header() as $name => $value) {
             $name = strtoupper(str_replace('-', '_', $name));
-            $server['HTTP_' . $name] = $value;
+            $_SERVER['HTTP_' . $name] = $value;
         }
 
         if ($contentType = $workermanRequest->header('content-type')) {
-            $server['CONTENT_TYPE'] = $contentType;
+            $_SERVER['CONTENT_TYPE'] = $contentType;
         }
         if ($contentLength = $workermanRequest->header('content-length')) {
-            $server['CONTENT_LENGTH'] = $contentLength;
+            $_SERVER['CONTENT_LENGTH'] = $contentLength;
         }
 
-        $query = $workermanRequest->get() ?? [];
-        $post = $workermanRequest->post() ?? [];
-        $rawBody = $workermanRequest->rawBody();
-
-        $contentType = $server['CONTENT_TYPE'] ?? '';
-        if (stripos($contentType, 'application/json') !== false && !empty($rawBody)) {
-            $jsonData = json_decode($rawBody, true);
-            if (is_array($jsonData)) {
-                $post = array_merge($post, $jsonData);
-            }
+        // Fix argv & argc
+        if (!isset($_SERVER['argv'])) {
+            $_SERVER['argv'] = $GLOBALS['argv'] ?? [];
+            $_SERVER['argc'] = $GLOBALS['argc'] ?? 0;
         }
 
-        $cookies = $workermanRequest->cookie() ?? [];
-        $files = $this->convertUploadedFiles($workermanRequest->file() ?? []);
+        $files = $this->convertUploadedFiles($_FILES);
 
-        $laravelRequest = new \Illuminate\Http\Request($query, $post, [], $cookies, $files, $server, $rawBody);
-        $laravelRequest->setMethod($workermanRequest->method());
+        $laravelRequest = new \Illuminate\Http\Request($_GET, $_POST, [], $_COOKIE, $files, $_SERVER, $rawBody);
+        $laravelRequest->enableHttpMethodParameterOverride();
 
         return $laravelRequest;
     }
@@ -436,8 +465,6 @@ class AppManager
     /**
      * 清理请求相关资源
      *
-     * 注意：绝对不能调用 $app->flush()，这会清除所有绑定包括核心服务
-     *
      * @return void
      */
     private function cleanupRequest(): void
@@ -446,250 +473,22 @@ class AppManager
         if ($this->requestCount >= $this->maxRequests) {
             $avgTime = round($this->stats['total_time_ms'] / max(1, $this->stats['total_requests']), 2);
             Logger::info("已处理 {$this->requestCount} 个请求，平均耗时 {$avgTime}ms，峰值内存 {$this->peakMemory}MB");
-            Logger::info('达到最大请求数限制，Worker 进程重启中...');
+            Logger::info('达到最大请求数限制，当前进程将退出，主进程会自动拉起新进程...');
             Worker::stopAll();
             return;
         }
 
-        // 1. 清理请求级别的实例（这些在每次请求后需要重置）
-        $this->clearRequestInstances();
+        // 执行请求清理（内置清理器 + 用户自定义清理器）
+        $this->cleanerManager->cleanup($this->adapter->getApp());
 
-        // 2. 清理 Facade 缓存的实例（如果启用了 Facade）
-        if (class_exists(Facade::class)) {
-            Facade::clearResolvedInstances();
-        }
-
-        // 3. 清理数据库查询日志（防止内存膨胀）
-        $this->flushDatabaseQueryLog();
-
-        // 4. 定期执行垃圾回收
+        // 定期执行垃圾回收
         if ($this->requestCount % 100 === 0) {
-            gc_collect_cycles();
-
-            // PHP 7.4+ 清理内存缓存
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
             if (function_exists('gc_mem_caches')) {
                 gc_mem_caches();
             }
-        }
-    }
-
-    /**
-     * 清理请求级别的容器实例
-     *
-     * 只清理与单次请求相关的实例，保留核心服务
-     *
-     * @return void
-     */
-    private function clearRequestInstances(): void
-    {
-        // 需要在每次请求后清理的抽象绑定
-        $requestScopedAbstracts = [
-            'request',
-            'Illuminate\Http\Request',
-        ];
-
-        foreach ($requestScopedAbstracts as $abstract) {
-            if ($this->adapter->resolved($abstract)) {
-                $this->adapter->forgetInstance($abstract);
-            }
-        }
-
-        // 清理 Session（如果使用）
-        if ($this->adapter->bound('session')) {
-            try {
-                $session = $this->adapter->make('session');
-                if (method_exists($session, 'flush')) {
-                    // 只清理 session 驱动，不清理整个 session manager
-                    $driver = $session->driver();
-                    if (method_exists($driver, 'flush')) {
-                        $driver->flush();
-                    }
-                }
-            } catch (Throwable $e) {
-                // 忽略 Session 清理错误
-            }
-        }
-
-        // 重置 Auth guard 状态
-        if ($this->adapter->bound('auth')) {
-            try {
-                $auth = $this->adapter->make('auth');
-                // 清理所有 guard 的缓存用户
-                foreach (['web', 'api', 'sanctum'] as $guard) {
-                    try {
-                        $guardInstance = $auth->guard($guard);
-                        if (method_exists($guardInstance, 'forgetUser')) {
-                            $guardInstance->forgetUser();
-                        }
-                    } catch (Throwable $e) {
-                        // 忽略不存在的 guard
-                    }
-                }
-            } catch (Throwable $e) {
-                // 忽略 Auth 清理错误
-            }
-        }
-
-        // 清理 Cookie 队列
-        if ($this->adapter->bound('cookie')) {
-            try {
-                $cookie = $this->adapter->make('cookie');
-                if (method_exists($cookie, 'flushQueuedCookies')) {
-                    $cookie->flushQueuedCookies();
-                }
-            } catch (Throwable $e) {
-                // 忽略
-            }
-        }
-
-        // 清理 Context 上下文（Laravel 11+）
-        $this->clearContext();
-
-        // 清理日志上下文
-        $this->clearLogContext();
-
-        // 重置翻译区域设置
-        $this->resetLocale();
-
-        // 清理缓存的视图数据
-        $this->clearViewSharedData();
-    }
-
-    /**
-     * 清理 Context 上下文（Laravel 11+）
-     *
-     * @return void
-     */
-    private function clearContext(): void
-    {
-        // Laravel 11+ Context Facade
-        if (class_exists('Illuminate\Support\Facades\Context')) {
-            try {
-                \Illuminate\Support\Facades\Context::flush();
-            } catch (Throwable $e) {
-                // 忽略
-            }
-        }
-
-        // 也尝试通过容器清理
-        if ($this->adapter->bound('context')) {
-            try {
-                $this->adapter->forgetInstance('context');
-            } catch (Throwable $e) {
-                // 忽略
-            }
-        }
-    }
-
-    /**
-     * 清理日志上下文
-     *
-     * @return void
-     */
-    private function clearLogContext(): void
-    {
-        if (!$this->adapter->bound('log')) {
-            return;
-        }
-
-        try {
-            $log = $this->adapter->make('log');
-
-            // 清理日志上下文（Laravel 10+）
-            if (method_exists($log, 'withoutContext')) {
-                $log->withoutContext();
-            }
-
-            // 清理共享的日志上下文
-            if (method_exists($log, 'flushSharedContext')) {
-                $log->flushSharedContext();
-            }
-        } catch (Throwable $e) {
-            // 忽略
-        }
-    }
-
-    /**
-     * 重置翻译区域设置
-     *
-     * @return void
-     */
-    private function resetLocale(): void
-    {
-        if (!$this->adapter->bound('translator')) {
-            return;
-        }
-
-        try {
-            $translator = $this->adapter->make('translator');
-            $app = $this->adapter->getApp();
-
-            // 重置为应用默认区域
-            if (method_exists($app, 'getLocale')) {
-                $defaultLocale = $app->getLocale();
-            } else {
-                $defaultLocale = 'en';
-            }
-
-            if (method_exists($translator, 'setLocale')) {
-                $translator->setLocale($defaultLocale);
-            }
-        } catch (Throwable $e) {
-            // 忽略
-        }
-    }
-
-    /**
-     * 清理视图共享数据
-     *
-     * @return void
-     */
-    private function clearViewSharedData(): void
-    {
-        if (!$this->adapter->bound('view')) {
-            return;
-        }
-
-        try {
-            $view = $this->adapter->make('view');
-
-            // 获取 view factory 的共享数据
-            if (method_exists($view, 'getShared')) {
-                $shared = $view->getShared();
-
-                // 保留 Laravel 系统共享数据，清理用户添加的
-                $systemKeys = ['__env', 'app', 'errors'];
-
-                foreach (array_keys($shared) as $key) {
-                    if (!in_array($key, $systemKeys, true)) {
-                        // Laravel 没有直接的 unshare 方法，通过重新绑定空值
-                        // 这里只记录警告，不做清理，因为可能影响框架功能
-                    }
-                }
-            }
-        } catch (Throwable $e) {
-            // 忽略
-        }
-    }
-
-    /**
-     * 清理数据库查询日志
-     *
-     * @return void
-     */
-    private function flushDatabaseQueryLog(): void
-    {
-        if (!$this->adapter->bound('db')) {
-            return;
-        }
-
-        try {
-            $db = $this->adapter->make('db');
-            foreach ($db->getConnections() as $connection) {
-                $connection->flushQueryLog();
-            }
-        } catch (Throwable $e) {
-            // 忽略数据库清理错误
         }
     }
 

@@ -19,7 +19,7 @@ use Qiuapeng\LaravelWorkerman\Contracts\FrameworkAdapter;
 final class LumenAdapter implements FrameworkAdapter
 {
     /** @var Application Lumen 应用实例 */
-    private Application $app;
+    private $app;
 
     /**
      * 构造函数

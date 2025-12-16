@@ -18,10 +18,10 @@ use Qiuapeng\LaravelWorkerman\Contracts\FrameworkAdapter;
 final class LaravelAdapter implements FrameworkAdapter
 {
     /** @var Application Laravel 应用实例 */
-    private Application $app;
+    private $app;
 
     /** @var Kernel HTTP 内核 */
-    private Kernel $kernel;
+    private $kernel;
 
     /**
      * 构造函数

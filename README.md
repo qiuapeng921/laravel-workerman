@@ -4,12 +4,12 @@
 
 ## 版本要求
 
-| 依赖 | 版本             |
-|------|----------------|
-| PHP | ^8.1           |
-| Laravel | ^10.0 |
-| Lumen | ^10.0 |
-| Workerman | ^5.0           |
+| 依赖 | 版本         |
+|------|------------|
+| PHP | ^7.2 \| ^8.0 |
+| Laravel | ^6.0 |
+| Lumen | ^6.0 |
+| Workerman | ^4.0|
 
 ## 特性
 
@@ -21,14 +21,9 @@
 - 🔀 **双框架支持**: 同时兼容 Laravel 和 Lumen 框架
 
 ## 安装
+
 ```bash
-# PHP >=8.1
-composer -vvv require "qiuapeng921/laravel-workerman:^2.0"
-
-# PHP >=7.0.0,<=7.4.33
-composer -vvv require "qiuapeng921/laravel-workerman:^1.0"
-
-# 确保你的composer.lock文件是在版本控制中
+composer require "qiuapeng921/laravel-workerman:^1.1" -vvv
 ```
 
 ## 配置
@@ -139,7 +134,68 @@ return [
     'log'          => [
         'file' => storage_path('logs/workerman.log'),
     ],
+
+    // 自定义清理器（每次请求结束后执行）
+    'cleaners'     => [
+        // App\Workerman\Cleaners\MyCleaner::class,
+    ],
 ];
+```
+
+## 自定义清理器
+
+在 Workerman 常驻内存环境下，某些资源需要在每次请求结束后清理，以防止状态污染。
+
+### 内置清理器
+
+已内置以下清理器，自动执行：
+
+- `GlobalVariableCleaner` - 清理 PHP 超全局变量
+- `RequestInstanceCleaner` - 清理请求级别容器实例
+- `FacadeCleaner` - 清理 Facade 缓存
+- `SessionCleaner` - 保存并重置 Session
+- `AuthCleaner` - 清理认证状态
+- `CookieCleaner` - 清理 Cookie 队列
+- `ValidatorCleaner` - 清理验证器实例
+- `UrlGeneratorCleaner` - 清理 URL 生成器
+- `DatabaseCleaner` - 清理数据库查询日志、回滚未提交事务
+
+### 创建自定义清理器
+
+如果你的应用有自定义的单例或静态变量需要清理，可以创建自定义清理器：
+
+```php
+<?php
+
+namespace App\Workerman\Cleaners;
+
+use Qiuapeng\LaravelWorkerman\Contracts\CleanerInterface;
+
+class MyCleaner implements CleanerInterface
+{
+    public function clean($app): void
+    {
+        // 清理自定义缓存
+        MyCache::flush();
+
+        // 重置单例状态
+        MySingleton::reset();
+
+        // 清理静态变量
+        MyService::$data = null;
+    }
+}
+```
+
+### 注册自定义清理器
+
+在 `config/workerman.php` 中注册：
+
+```php
+'cleaners' => [
+    App\Workerman\Cleaners\MyCleaner::class,
+    App\Workerman\Cleaners\AnotherCleaner::class,
+],
 ```
 
 ## 环境变量
@@ -161,11 +217,23 @@ src/
 ├── Config/
 │   └── WorkermanConfig.php    # 配置管理器 - 多级配置覆盖
 ├── Contracts/
-│   └── FrameworkAdapter.php   # 框架适配器接口
+│   ├── FrameworkAdapter.php   # 框架适配器接口
+│   └── CleanerInterface.php   # 清理器接口
 ├── Adapters/
 │   ├── AdapterFactory.php     # 适配器工厂 - 自动检测框架类型
 │   ├── LaravelAdapter.php     # Laravel 适配器
 │   └── LumenAdapter.php       # Lumen 适配器
+├── Cleaners/                   # 内置清理器
+│   ├── GlobalVariableCleaner.php
+│   ├── RequestInstanceCleaner.php
+│   ├── FacadeCleaner.php
+│   ├── SessionCleaner.php
+│   ├── AuthCleaner.php
+│   ├── CookieCleaner.php
+│   ├── ValidatorCleaner.php
+│   ├── UrlGeneratorCleaner.php
+│   └── DatabaseCleaner.php
+├── CleanerManager.php         # 清理器管理器
 ├── WorkermanServer.php        # 服务器类 - Worker 生命周期管理
 ├── AppManager.php             # 应用管理器 - 统一处理 Laravel/Lumen
 ├── StaticFileHandler.php      # 静态文件处理器
@@ -230,11 +298,6 @@ src/
 ```php
 $app->withFacades();
 ```
-### 7. 疑难问题
-```text
-1. 如果安装了grpc扩展，启动需要加上 GRPC_ENABLE_FORK_SUPPORT=1 GRPC_POLL_STRATEGY=epoll1 因为grpc会fock一个子进程
-   例如GRPC_ENABLE_FORK_SUPPORT=1 GRPC_POLL_STRATEGY=epoll1 php workerman.php start -d
-```
 
 ## 本地开发调试
 
@@ -250,9 +313,13 @@ $app->withFacades();
         }
     ],
     "require": {
-        "qiuapeng/workerman-laravel": "@dev"
+        "qiuapeng921/laravel-workerman": "@dev"
     }
 }
+```
+
+```bash
+composer update "qiuapeng921/laravel-workerman:@dev" -vvv
 ```
 
 ## 性能对比
@@ -265,17 +332,36 @@ $app->withFacades();
 
 > 测试环境：4 核 CPU，8GB 内存，简单 API 请求
 
+## 健康检查
+
+内置健康检查端点，供负载均衡器和监控系统使用：
+
+```bash
+# 健康检查（始终可用）
+curl http://localhost:8080/health
+
+# 响应示例
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00+08:00",
+  "uptime": 3600.5,
+  "memory": {
+    "current_mb": 32.5,
+    "peak_mb": 48.2
+  },
+  "worker": {
+    "pid": 12345,
+    "requests": 5000
+  }
+}
+
+# 详细状态（仅调试模式）
+curl http://localhost:8080/_status
+```
+
 ## Changelog
 
-### v1.1.0
-- ✨ 新增 Lumen 框架支持
-- ✨ 使用适配器模式重构代码
-- 📦 新增 `AppManager` 统一管理 Laravel/Lumen 应用
-- 📝 更新文档
-
-### v1.0.x
-- 🚀 初始版本
-- ✅ Laravel 支持
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新记录。
 
 ## License
 

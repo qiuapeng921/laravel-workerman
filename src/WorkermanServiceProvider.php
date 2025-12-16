@@ -35,7 +35,7 @@ class WorkermanServiceProvider extends ServiceProvider
         if ($this->isLaravel()) {
             $this->publishes([
                 $this->getConfigPath() => $this->configPath('workerman.php'),
-                $this->getEntryPath() => $this->basePath('workerman.php'),
+                $this->getEntryPath()  => $this->basePath('workerman.php'),
             ], 'workerman');
         }
     }
