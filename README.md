@@ -33,7 +33,7 @@ composer require "qiuapeng921/laravel-workerman:^1.1" -vvv
 发布配置文件和启动脚本：
 
 ```bash
-php artisan vendor:publish --tag=workerman
+php artisan vendor:publish --tag=workerman --force
 ```
 
 这将发布：
