@@ -38,4 +38,10 @@ return [
     'log'          => [
         'file' => $basePath . '/storage/workerman/workerman.log',
     ],
+
+    // 自定义清理器（每次请求结束后执行）
+    // 实现 Qiuapeng\LaravelWorkerman\Contracts\CleanerInterface 接口
+    'cleaners'     => [
+        // App\Workerman\Cleaners\MyCleaner::class,
+    ],
 ];

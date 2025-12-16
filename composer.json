@@ -1,5 +1,5 @@
 {
-    "name": "qiuapeng/laravel-workerman",
+    "name": "qiuapeng921/laravel-workerman",
     "description": "使用 Workerman 加速 Laravel/Lumen 应用，常驻内存模式提升 5-20 倍性能",
     "type": "library",
     "license": "MIT",
@@ -19,8 +19,8 @@
     "require": {
         "php": "^7.2|^8.0",
         "ext-json": "*",
-        "workerman/workerman": "^4.0",
-        "illuminate/support": "^6.0|^7.0|^8.0|^9.0"
+        "workerman/workerman": "^4.0|^5.0",
+        "illuminate/support": "^6.0|^7.0|^8.0|^9.0|^10.0|^11.0|^12.0"
     },
     "suggest": {
         "laravel/lumen-framework": "如果使用 Lumen 框架，需要安装此依赖"

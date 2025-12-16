@@ -45,7 +45,7 @@ final class WorkermanServer
      */
     public function __construct(WorkermanConfig $config)
     {
-        $this->config = $config;
+        $this->config          = $config;
         $this->serverStartTime = microtime(true);
     }
 
@@ -74,8 +74,8 @@ final class WorkermanServer
         $this->config->ensureRuntimeDir();
 
         // 设置 Workerman 全局配置
-        Worker::$pidFile = $this->config->getPidFile();
-        Worker::$logFile = $this->config->getLogFile();
+        Worker::$pidFile    = $this->config->getPidFile();
+        Worker::$logFile    = $this->config->getLogFile();
         Worker::$stdoutFile = $this->config->getStdoutFile();
 
         // 初始化 Logger（设置调试模式和日志文件）
@@ -93,9 +93,9 @@ final class WorkermanServer
      */
     private function createWorker(): void
     {
-        $this->worker = new Worker($this->config->getListenAddress());
+        $this->worker        = new Worker($this->config->getListenAddress());
         $this->worker->count = $this->config->getWorkerCount();
-        $this->worker->name = $this->config->getName();
+        $this->worker->name  = $this->config->getName();
     }
 
     /**
@@ -108,10 +108,10 @@ final class WorkermanServer
         $this->worker->onWorkerStart = function (Worker $worker) {
             $this->onWorkerStart($worker);
         };
-        $this->worker->onMessage = function (TcpConnection $conn, Request $req) {
+        $this->worker->onMessage     = function (TcpConnection $conn, Request $req) {
             $this->onMessage($conn, $req);
         };
-        $this->worker->onWorkerStop = function (Worker $worker) {
+        $this->worker->onWorkerStop  = function (Worker $worker) {
             $this->onWorkerStop($worker);
         };
     }
@@ -131,7 +131,8 @@ final class WorkermanServer
             $this->config->getBasePath(),
             $this->config->getMaxRequests(),
             $this->config->getPort(),
-            $this->config->isDebug()
+            $this->config->isDebug(),
+            $this->config->getCleaners()
         );
 
         try {
@@ -146,7 +147,7 @@ final class WorkermanServer
 
             $this->appManager->initialize();
 
-            $initTime = round((microtime(true) - $startTime) * 1000, 2);
+            $initTime   = round((microtime(true) - $startTime) * 1000, 2);
             $memoryUsed = round(memory_get_usage(true) / 1024 / 1024, 2);
 
             Logger::info(sprintf(
@@ -209,9 +210,9 @@ final class WorkermanServer
      */
     private function handleHealthCheck(): Response
     {
-        $uptime = round(microtime(true) - $this->serverStartTime, 2);
+        $uptime      = round(microtime(true) - $this->serverStartTime, 2);
         $memoryUsage = round(memory_get_usage(true) / 1024 / 1024, 2);
-        $memoryPeak = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
+        $memoryPeak  = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
 
         $health = [
             'status'    => 'healthy',
@@ -244,7 +245,7 @@ final class WorkermanServer
      */
     private function handleStatus(): Response
     {
-        $stats = $this->appManager !== null ? $this->appManager->getStats() : [];
+        $stats  = $this->appManager !== null ? $this->appManager->getStats() : [];
         $uptime = round(microtime(true) - $this->serverStartTime, 2);
 
         $status = [
@@ -304,8 +305,8 @@ final class WorkermanServer
             return;
         }
 
-        $stats = $this->appManager->getStats();
-        $avgTime = $this->calculateAverageTime($stats);
+        $stats      = $this->appManager->getStats();
+        $avgTime    = $this->calculateAverageTime($stats);
         $peakMemory = $this->appManager->getPeakMemory();
 
         Logger::info(sprintf(
@@ -345,7 +346,7 @@ final class WorkermanServer
     private function calculateAverageTime(array $stats): float
     {
         $totalRequests = max(1, $stats['total_requests'] ?? 0);
-        $totalTime = $stats['total_time_ms'] ?? 0;
+        $totalTime     = $stats['total_time_ms'] ?? 0;
 
         return round($totalTime / $totalRequests, 2);
     }

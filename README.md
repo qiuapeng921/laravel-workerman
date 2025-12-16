@@ -4,12 +4,12 @@
 
 ## 版本要求
 
-| 依赖 | 版本                         |
-|------|----------------------------|
-| PHP | ^7.2 \| ^7.3 \| ^7.4 \| ^8.0 |
-| Laravel | ^8.0 \| ^9.0 |
-| Lumen | ^8.0 \| ^9.0 |
-| Workerman | ^4.0                   |
+| 依赖 | 版本         |
+|------|------------|
+| PHP | ^7.2 \| ^8.0 |
+| Laravel | ^6.0 |
+| Lumen | ^6.0 |
+| Workerman | ^4.0|
 
 ## 特性
 
@@ -23,7 +23,7 @@
 ## 安装
 
 ```bash
-composer require qiuapeng921/laravel-workerman
+composer require "qiuapeng921/laravel-workerman:^1.1" -vvv
 ```
 
 ## 配置
@@ -134,7 +134,68 @@ return [
     'log'          => [
         'file' => storage_path('logs/workerman.log'),
     ],
+
+    // 自定义清理器（每次请求结束后执行）
+    'cleaners'     => [
+        // App\Workerman\Cleaners\MyCleaner::class,
+    ],
 ];
+```
+
+## 自定义清理器
+
+在 Workerman 常驻内存环境下，某些资源需要在每次请求结束后清理，以防止状态污染。
+
+### 内置清理器
+
+已内置以下清理器，自动执行：
+
+- `GlobalVariableCleaner` - 清理 PHP 超全局变量
+- `RequestInstanceCleaner` - 清理请求级别容器实例
+- `FacadeCleaner` - 清理 Facade 缓存
+- `SessionCleaner` - 保存并重置 Session
+- `AuthCleaner` - 清理认证状态
+- `CookieCleaner` - 清理 Cookie 队列
+- `ValidatorCleaner` - 清理验证器实例
+- `UrlGeneratorCleaner` - 清理 URL 生成器
+- `DatabaseCleaner` - 清理数据库查询日志、回滚未提交事务
+
+### 创建自定义清理器
+
+如果你的应用有自定义的单例或静态变量需要清理，可以创建自定义清理器：
+
+```php
+<?php
+
+namespace App\Workerman\Cleaners;
+
+use Qiuapeng\LaravelWorkerman\Contracts\CleanerInterface;
+
+class MyCleaner implements CleanerInterface
+{
+    public function clean($app): void
+    {
+        // 清理自定义缓存
+        MyCache::flush();
+
+        // 重置单例状态
+        MySingleton::reset();
+
+        // 清理静态变量
+        MyService::$data = null;
+    }
+}
+```
+
+### 注册自定义清理器
+
+在 `config/workerman.php` 中注册：
+
+```php
+'cleaners' => [
+    App\Workerman\Cleaners\MyCleaner::class,
+    App\Workerman\Cleaners\AnotherCleaner::class,
+],
 ```
 
 ## 环境变量
@@ -156,11 +217,23 @@ src/
 ├── Config/
 │   └── WorkermanConfig.php    # 配置管理器 - 多级配置覆盖
 ├── Contracts/
-│   └── FrameworkAdapter.php   # 框架适配器接口
+│   ├── FrameworkAdapter.php   # 框架适配器接口
+│   └── CleanerInterface.php   # 清理器接口
 ├── Adapters/
 │   ├── AdapterFactory.php     # 适配器工厂 - 自动检测框架类型
 │   ├── LaravelAdapter.php     # Laravel 适配器
 │   └── LumenAdapter.php       # Lumen 适配器
+├── Cleaners/                   # 内置清理器
+│   ├── GlobalVariableCleaner.php
+│   ├── RequestInstanceCleaner.php
+│   ├── FacadeCleaner.php
+│   ├── SessionCleaner.php
+│   ├── AuthCleaner.php
+│   ├── CookieCleaner.php
+│   ├── ValidatorCleaner.php
+│   ├── UrlGeneratorCleaner.php
+│   └── DatabaseCleaner.php
+├── CleanerManager.php         # 清理器管理器
 ├── WorkermanServer.php        # 服务器类 - Worker 生命周期管理
 ├── AppManager.php             # 应用管理器 - 统一处理 Laravel/Lumen
 ├── StaticFileHandler.php      # 静态文件处理器
@@ -240,9 +313,13 @@ $app->withFacades();
         }
     ],
     "require": {
-        "qiuapeng/laravel-workerman": "@dev"
+        "qiuapeng921/laravel-workerman": "@dev"
     }
 }
+```
+
+```bash
+composer update "qiuapeng921/laravel-workerman:@dev" -vvv
 ```
 
 ## 性能对比
@@ -284,29 +361,7 @@ curl http://localhost:8080/_status
 
 ## Changelog
 
-### v1.2.0
-- 🔒 **安全修复**: 修复静态文件目录遍历漏洞
-- 🔒 **安全修复**: 使用加密安全随机数生成请求 ID
-- 🔒 **安全修复**: 动态获取所有 Auth Guard 进行清理，防止用户状态残留
-- ✨ **新功能**: 添加 `/health` 健康检查端点
-- ✨ **新功能**: 添加 `/_status` 详细状态端点（仅调试模式）
-- ✨ **新功能**: Logger 支持日志级别和文件写入
-- 🐛 **Bug 修复**: 添加全局变量清理，防止请求间状态污染
-- 🐛 **Bug 修复**: 添加未提交事务检测和自动回滚
-- 🐛 **Bug 修复**: 添加数据库连接断开检测和自动重连
-- ⚡ **优化**: 扩展静态文件 MIME 类型支持
-- ⚡ **优化**: 改进内存管理和资源清理机制
-- 📝 **文档**: 更新文档，添加健康检查说明
-
-### v1.1.0
-- ✨ 新增 Lumen 框架支持
-- ✨ 使用适配器模式重构代码
-- 📦 新增 `AppManager` 统一管理 Laravel/Lumen 应用
-- 📝 更新文档
-
-### v1.0.x
-- 🚀 初始版本
-- ✅ Laravel 支持
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新记录。
 
 ## License
 

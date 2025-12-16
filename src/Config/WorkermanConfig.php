@@ -45,6 +45,9 @@ final class WorkermanConfig
     /** @var string 运行时目录 */
     private $runtimeDir;
 
+    /** @var array<string> 自定义清理器类名列表 */
+    private $cleaners = [];
+
     /**
      * 配置构造函数
      *
@@ -78,12 +81,15 @@ final class WorkermanConfig
 
         // 静态文件配置
         $staticConfig = $config['static'] ?? [];
-        $this->staticEnable = (bool)($staticConfig['enable'] ?? true);
+        $this->staticEnable = (bool) ($staticConfig['enable'] ?? true);
         $this->staticPath = $staticConfig['path'] ?? $this->basePath . '/public';
 
         // 日志配置
         $logConfig = $config['log'] ?? [];
         $this->logFile = $logConfig['file'] ?? $this->runtimeDir . '/workerman.log';
+
+        // 自定义清理器配置
+        $this->cleaners = $config['cleaners'] ?? [];
 
         return $this;
     }
@@ -116,7 +122,7 @@ final class WorkermanConfig
      */
     private function resolveString(array $config, string $key, string $envKey, string $default): string
     {
-        return (string)($config[$key] ?? getenv($envKey) ?: $default);
+        return (string) ($config[$key] ?? getenv($envKey) ?: $default);
     }
 
     /**
@@ -130,7 +136,7 @@ final class WorkermanConfig
     private function resolvePort(array $config, array $cliOptions): int
     {
         $port = $cliOptions['p'] ?? $cliOptions['port'] ?? $config['port'] ?? getenv('WORKERMAN_PORT') ?: 8080;
-        return (int)$port;
+        return (int) $port;
     }
 
     /**
@@ -150,7 +156,7 @@ final class WorkermanConfig
             return 1;
         }
 
-        return (int)$workers;
+        return (int) $workers;
     }
 
     /**
@@ -164,7 +170,7 @@ final class WorkermanConfig
     private function resolveMaxRequests(array $config, array $cliOptions): int
     {
         $maxRequests = $cliOptions['m'] ?? $cliOptions['max'] ?? $config['max_requests'] ?? getenv('WORKERMAN_MAX_REQUESTS') ?: 10000;
-        return (int)$maxRequests;
+        return (int) $maxRequests;
     }
 
     /**
@@ -281,5 +287,15 @@ final class WorkermanConfig
         if (!is_dir($this->runtimeDir)) {
             mkdir($this->runtimeDir, 0755, true);
         }
+    }
+
+    /**
+     * 获取自定义清理器列表
+     *
+     * @return array<string>
+     */
+    public function getCleaners(): array
+    {
+        return $this->cleaners;
     }
 }
