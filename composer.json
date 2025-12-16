@@ -20,7 +20,7 @@
         "php": "^7.2|^8.0",
         "ext-json": "*",
         "workerman/workerman": "^4.0",
-        "illuminate/support": "^8.0|^9.0|^10.0|^11.0"
+        "illuminate/support": "^6.0|^7.0|^8.0|^9.0"
     },
     "suggest": {
         "laravel/lumen-framework": "如果使用 Lumen 框架，需要安装此依赖"
