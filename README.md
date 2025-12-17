@@ -23,7 +23,13 @@
 ## 安装
 
 ```bash
-composer require "qiuapeng921/laravel-workerman:^1.1" -vvv
+# PHP >=8.1
+composer -vvv require "qiuapeng921/laravel-workerman:^2.1"
+
+# PHP >=7.0.0,<=7.4.33
+composer -vvv require "qiuapeng921/laravel-workerman:^1.1"
+
+# 确保你的composer.lock文件是在版本控制中
 ```
 
 ## 配置
@@ -138,6 +144,7 @@ return [
     // 自定义清理器（每次请求结束后执行）
     'cleaners'     => [
         // App\Workerman\Cleaners\MyCleaner::class,
+        // App\Workerman\Cleaners\AnotherCleaner::class,
     ],
 ];
 ```
@@ -322,16 +329,6 @@ $app->withFacades();
 composer update "qiuapeng921/laravel-workerman:@dev" -vvv
 ```
 
-## 性能对比
-
-| 模式 | QPS | 响应时间 |
-|------|-----|----------|
-| PHP-FPM | 500 | 20ms |
-| Workerman (Laravel) | 5000+ | 2ms |
-| Workerman (Lumen) | 8000+ | 1.5ms |
-
-> 测试环境：4 核 CPU，8GB 内存，简单 API 请求
-
 ## 健康检查
 
 内置健康检查端点，供负载均衡器和监控系统使用：
@@ -339,21 +336,6 @@ composer update "qiuapeng921/laravel-workerman:@dev" -vvv
 ```bash
 # 健康检查（始终可用）
 curl http://localhost:8080/health
-
-# 响应示例
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T12:00:00+08:00",
-  "uptime": 3600.5,
-  "memory": {
-    "current_mb": 32.5,
-    "peak_mb": 48.2
-  },
-  "worker": {
-    "pid": 12345,
-    "requests": 5000
-  }
-}
 
 # 详细状态（仅调试模式）
 curl http://localhost:8080/_status
