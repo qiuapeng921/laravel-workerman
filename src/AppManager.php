@@ -10,10 +10,8 @@ use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Contracts\Debug\ExceptionHandler;
-use Illuminate\Http\UploadedFile;
 use Qiuapeng\LaravelWorkerman\Contracts\FrameworkAdapter;
 use Qiuapeng\LaravelWorkerman\Adapters\AdapterFactory;
-use Qiuapeng\LaravelWorkerman\CleanerManager;
 
 /**
  * 应用管理器
@@ -44,9 +42,9 @@ class AppManager
     /** @var array<string, mixed> 性能统计 */
     private $stats = [
         'total_requests' => 0,
-        'total_time_ms' => 0,
-        'min_time_ms' => PHP_FLOAT_MAX,
-        'max_time_ms' => 0,
+        'total_time_ms'  => 0,
+        'min_time_ms'    => PHP_FLOAT_MAX,
+        'max_time_ms'    => 0,
     ];
 
     /** @var string 基础路径 */
@@ -70,16 +68,16 @@ class AppManager
      */
     public function __construct(
         string $basePath,
-        int $maxRequests = 10000,
-        int $port = 8080,
-        bool $debug = false,
-        array $cleaners = []
+        int    $maxRequests = 10000,
+        int    $port = 8080,
+        bool   $debug = false,
+        array  $cleaners = []
     ) {
-        $this->basePath = $basePath;
+        $this->basePath    = $basePath;
         $this->maxRequests = $maxRequests;
-        $this->port = $port;
-        $this->debug = $debug || getenv('WORKERMAN_DEBUG') === 'true';
-        $this->cleaners = $cleaners;
+        $this->port        = $port;
+        $this->debug       = $debug || getenv('WORKERMAN_DEBUG') === 'true';
+        $this->cleaners    = $cleaners;
     }
 
     /**
@@ -130,7 +128,7 @@ class AppManager
             [],
             [],
             [
-                'HTTP_HOST' => 'localhost',
+                'HTTP_HOST'   => 'localhost',
                 'SERVER_NAME' => 'localhost',
                 'SERVER_PORT' => $this->port,
                 'SCRIPT_NAME' => '/index.php',
@@ -174,7 +172,7 @@ class AppManager
             }
 
             $laravelResponse = $this->adapter->handle($laravelRequest);
-            $response = $this->convertResponse($laravelResponse);
+            $response        = $this->convertResponse($laravelResponse);
 
             $this->adapter->terminate($laravelRequest, $laravelResponse);
 
@@ -205,7 +203,7 @@ class AppManager
     private function logDebugRequest(Request $workermanRequest): void
     {
         $method = $workermanRequest->method();
-        $uri = $workermanRequest->uri();
+        $uri    = $workermanRequest->uri();
 
         Logger::debug("{$method} {$uri}");
 
@@ -264,7 +262,7 @@ class AppManager
             // 降级方案：如果 random_bytes 不可用
             return sprintf(
                 '%s%08x%04x',
-                substr(hash('sha256', uniqid((string) mt_rand(), true) . microtime(true)), 0, 16),
+                substr(hash('sha256', uniqid((string)mt_rand(), true) . microtime(true)), 0, 16),
                 time(),
                 getmypid() % 0xffff
             );
@@ -282,37 +280,37 @@ class AppManager
     private function convertRequest(Request $workermanRequest, float $requestStartTime): \Illuminate\Http\Request
     {
         $connection = $workermanRequest->connection;
-        $remoteIp = $connection !== null ? $connection->getRemoteIp() : '127.0.0.1';
+        $remoteIp   = $connection !== null ? $connection->getRemoteIp() : '127.0.0.1';
         $remotePort = $connection !== null ? $connection->getRemotePort() : 0;
 
-        $_GET = $workermanRequest->get() ?? [];
-        $_POST = $workermanRequest->post() ?? [];
+        $_GET    = $workermanRequest->get() ?? [];
+        $_POST   = $workermanRequest->post() ?? [];
         $_COOKIE = $workermanRequest->cookie() ?? [];
-        $_FILES = $workermanRequest->file() ?? [];
+        $_FILES  = $workermanRequest->file() ?? [];
         $rawBody = $workermanRequest->rawBody();
 
         $_SERVER = [
-            'REQUEST_METHOD' => $workermanRequest->method(),
-            'REQUEST_URI' => $workermanRequest->uri(),
-            'QUERY_STRING' => $workermanRequest->queryString() ?? '',
-            'SERVER_PROTOCOL' => 'HTTP/1.1',
-            'SERVER_NAME' => $workermanRequest->host() ?? 'localhost',
-            'HTTP_HOST' => $workermanRequest->host() ?? 'localhost',
-            'HTTPS' => 'off',
-            'REMOTE_ADDR' => $remoteIp,
-            'REMOTE_PORT' => $remotePort,
-            'SERVER_PORT' => $this->port,
-            'DOCUMENT_ROOT' => $this->basePath . '/public',
-            'SCRIPT_FILENAME' => $this->basePath . '/public/index.php',
-            'SCRIPT_NAME' => '/index.php',
-            'REQUEST_TIME' => time(),
+            'REQUEST_METHOD'     => $workermanRequest->method(),
+            'REQUEST_URI'        => $workermanRequest->uri(),
+            'QUERY_STRING'       => $workermanRequest->queryString() ?? '',
+            'SERVER_PROTOCOL'    => 'HTTP/1.1',
+            'SERVER_NAME'        => $workermanRequest->host() ?? 'localhost',
+            'HTTP_HOST'          => $workermanRequest->host() ?? 'localhost',
+            'HTTPS'              => 'off',
+            'REMOTE_ADDR'        => $remoteIp,
+            'REMOTE_PORT'        => $remotePort,
+            'SERVER_PORT'        => $this->port,
+            'DOCUMENT_ROOT'      => $this->basePath . '/public',
+            'SCRIPT_FILENAME'    => $this->basePath . '/public/index.php',
+            'SCRIPT_NAME'        => '/index.php',
+            'REQUEST_TIME'       => time(),
             'REQUEST_TIME_FLOAT' => $requestStartTime,
-            'REQUEST_ID' => $this->generateRequestId(),
-            'START_TIME' => $requestStartTime,
+            'REQUEST_ID'         => $this->generateRequestId(),
+            'START_TIME'         => $requestStartTime,
         ];
 
         foreach ($workermanRequest->header() as $name => $value) {
-            $name = strtoupper(str_replace('-', '_', $name));
+            $name                     = strtoupper(str_replace('-', '_', $name));
             $_SERVER['HTTP_' . $name] = $value;
         }
 
@@ -329,7 +327,7 @@ class AppManager
             $_SERVER['argc'] = $GLOBALS['argc'] ?? 0;
         }
 
-        $files = $this->convertUploadedFiles($_FILES);
+        $files = UploadedFileConverter::convert($_FILES);
 
         $laravelRequest = new \Illuminate\Http\Request($_GET, $_POST, [], $_COOKIE, $files, $_SERVER, $rawBody);
         $laravelRequest->enableHttpMethodParameterOverride();
@@ -337,96 +335,6 @@ class AppManager
         return $laravelRequest;
     }
 
-    /**
-     * 转换上传文件
-     *
-     * 支持多种文件格式：
-     * 1. 标准 PHP 数组格式 ['tmp_name' => ..., 'name' => ..., ...]
-     * 2. Workerman 对象格式
-     *
-     * @param array $files Workerman 请求中的文件数据
-     *
-     * @return array 转换后的 Symfony UploadedFile 数组
-     */
-    private function convertUploadedFiles(array $files): array
-    {
-        $converted = [];
-
-        foreach ($files as $key => $file) {
-            // 情况 1: 标准 PHP 数组格式
-            if (is_array($file) && isset($file['tmp_name'])) {
-                // 单文件上传
-                if (is_string($file['tmp_name'])) {
-                    if (!empty($file['tmp_name']) && is_file($file['tmp_name'])) {
-                        $converted[$key] = new UploadedFile(
-                            $file['tmp_name'],
-                            $file['name'] ?? '',
-                            $file['type'] ?? null,
-                            $file['error'] ?? UPLOAD_ERR_OK,
-                            true
-                        );
-                    }
-                } // 多文件上传 (file[] 格式)
-                elseif (is_array($file['tmp_name'])) {
-                    $converted[$key] = [];
-                    foreach ($file['tmp_name'] as $index => $tmpName) {
-                        if (!empty($tmpName) && is_file($tmpName)) {
-                            $converted[$key][] = new UploadedFile(
-                                $tmpName,
-                                $file['name'][$index] ?? '',
-                                $file['type'][$index] ?? null,
-                                $file['error'][$index] ?? UPLOAD_ERR_OK,
-                                true
-                            );
-                        }
-                    }
-                }
-            } // 情况 2: Workerman 对象格式（某些版本返回对象）
-            elseif (is_object($file)) {
-                $tmpName = null;
-                $name = '';
-                $type = null;
-                $error = UPLOAD_ERR_OK;
-
-                // 尝试通过方法获取
-                if (method_exists($file, 'getPathname')) {
-                    $tmpName = $file->getPathname();
-                } elseif (property_exists($file, 'tmp_name')) {
-                    $tmpName = $file->tmp_name;
-                }
-
-                if (method_exists($file, 'getClientOriginalName')) {
-                    $name = $file->getClientOriginalName();
-                } elseif (property_exists($file, 'name')) {
-                    $name = $file->name;
-                }
-
-                if (method_exists($file, 'getClientMimeType')) {
-                    $type = $file->getClientMimeType();
-                } elseif (property_exists($file, 'type')) {
-                    $type = $file->type;
-                }
-
-                if (method_exists($file, 'getError')) {
-                    $error = $file->getError();
-                } elseif (property_exists($file, 'error')) {
-                    $error = $file->error;
-                }
-
-                if ($tmpName && is_file($tmpName)) {
-                    $converted[$key] = new UploadedFile(
-                        $tmpName,
-                        $name,
-                        $type,
-                        $error,
-                        true
-                    );
-                }
-            }
-        }
-
-        return $converted;
-    }
 
     /**
      * 转换响应为 Workerman 响应
@@ -455,10 +363,10 @@ class AppManager
     {
         $this->stats['total_requests']++;
         $this->stats['total_time_ms'] += $requestTimeMs;
-        $this->stats['min_time_ms'] = min($this->stats['min_time_ms'], $requestTimeMs);
-        $this->stats['max_time_ms'] = max($this->stats['max_time_ms'], $requestTimeMs);
+        $this->stats['min_time_ms']   = min($this->stats['min_time_ms'], $requestTimeMs);
+        $this->stats['max_time_ms']   = max($this->stats['max_time_ms'], $requestTimeMs);
 
-        $currentMemory = memory_get_usage(true) / 1024 / 1024;
+        $currentMemory    = memory_get_usage(true) / 1024 / 1024;
         $this->peakMemory = max($this->peakMemory, $currentMemory);
     }
 
@@ -511,7 +419,7 @@ class AppManager
         $response = new Response(500);
         $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         $response->withBody(json_encode([
-            'code' => 500,
+            'code'    => 500,
             'message' => 'Internal Server Error',
         ], JSON_UNESCAPED_UNICODE));
 
