@@ -347,7 +347,7 @@ class AppManager
     {
         return new Response(
             $laravelResponse->getStatusCode(),
-            $laravelResponse->headers->all(),
+            $laravelResponse->headers->allPreserveCase(),
             $laravelResponse->getContent()
         );
     }
